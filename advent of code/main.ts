@@ -5,63 +5,68 @@ const filePath = "./input.txt";
 
 let inputString = (await Deno.readTextFile(filePath)) as string;
 
-const lines = inputString.split("\r\n");
+const machines = inputString.split("\n\r");
 
-type key = `${number},${number}`;
-const map: Record<key, string> = {};
-type plot = { area: number; perimeter: number };
-const perimeters: Record<string, number> = {};
-type permiter = {
-  left: boolean;
-  right: boolean;
-  top: boolean;
-  bottom: boolean;
-};
+type pos = { x: number; y: number };
 
-lines.forEach((line, lineIndex) => {
-  Array.from(line).forEach((char, charIndex) => {
-    map[`${charIndex},${lineIndex}`] = char;
-  });
-});
+type pushedTally = { a: number; b: number };
 
-const checked: Record<key, boolean> = {};
-
-let recursivelyCheckPlot = (pos: `${number},${number}` = "0,0") => {
-  const char = map[pos];
-  if (checked[pos]) {
-    return { area: 0, perimeter: 0 };
+let recursivelyCalculateMoves = (
+  currentPos: pos,
+  a: pos,
+  b: pos,
+  prizePos: pos,
+  pushedTally: pushedTally = { a: 0, b: 0 }
+): "failed" | pushedTally => {
+  if (currentPos.x === prizePos.x && currentPos.y === prizePos.y) {
+    return pushedTally;
   }
-  checked[pos] = true;
-  const [x, y] = pos.split(",").map(Number);
-  let area = 1;
-  let perimeter = perimeters[pos] || 0;
+  if (currentPos.x > prizePos.x || currentPos.y > prizePos.y) {
+    return "failed";
+  }
+  const aPushedPos = { x: currentPos.x + a.x, y: currentPos.y + a.y };
+  const bPushedPos = { x: currentPos.x + b.x, y: currentPos.y + b.y };
 
-  const left = `${x - 1},${y}`;
-  const right = `${x + 1},${y}`;
-  const top = `${x},${y - 1}`;
-  const bottom = `${x},${y + 1}`;
+  const aPushedTally = recursivelyCalculateMoves(aPushedPos, a, b, prizePos, {
+    a: pushedTally.a + 1,
+    b: pushedTally.b,
+  });
+  if (aPushedTally !== "failed") {
+    return aPushedTally;
+  }
 
-  [left, right, top, bottom].forEach((newPos) => {
-    const [i, j] = newPos.split(",").map(Number);
-    if (map[`${i},${j}`] === char) {
-      const { area: returnedArea, perimeter: returnedPerimeter } =
-        recursivelyCheckPlot(`${i},${j}`);
-      area += returnedArea;
-      perimeter += returnedPerimeter;
-    }
+  const bPushedTally = recursivelyCalculateMoves(bPushedPos, a, b, prizePos, {
+    a: pushedTally.a,
+    b: pushedTally.b + 1,
   });
 
-  console.log(area, perimeter);
-  return { area, perimeter };
+  if (bPushedTally !== "failed") {
+    return bPushedTally;
+  }
+  return "failed";
 };
+
+recursivelyCalculateMoves = memoise(recursivelyCalculateMoves);
 
 let sum = 0;
-lines.forEach((line, lineIndex) => {
-  Array.from(line).forEach((char, charIndex) => {
-    const { area, perimeter } = recursivelyCheckPlot(
-      `${charIndex},${lineIndex}`
-    );
-    sum += area * perimeter;
-  });
+
+machines.forEach((machine, index) => {
+  console.log(index);
+  const prizeX = +(machine.match(/X=\d+/g)?.[0].match(/\d+/g)?.[0] ?? "");
+  const prizeY = +(machine.match(/Y=\d+/g)?.[0].match(/\d+/g)?.[0] ?? "");
+  const buttonALine = machine.match(/Button A.*/g)?.[0] ?? "";
+  const buttonBLine = machine.match(/Button B.*/g)?.[0] ?? "";
+  const aX = +(buttonALine.match(/\d+/g)?.[0] ?? "");
+  const aY = +(buttonALine.match(/\d+/g)?.[1] ?? "");
+  const bX = +(buttonBLine.match(/\d+/g)?.[0] ?? "");
+  const bY = +(buttonBLine.match(/\d+/g)?.[1] ?? "");
+  const prizePos = { x: prizeX, y: prizeY };
+  const a = { x: aX, y: aY };
+  const b = { x: bX, y: bY };
+  const result = recursivelyCalculateMoves({ x: 0, y: 0 }, a, b, prizePos);
+  if (result !== "failed") {
+    sum += result.a * 3 + result.b;
+  }
 });
+
 console.log(sum);
