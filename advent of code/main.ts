@@ -11,49 +11,14 @@ type pos = { x: number; y: number };
 
 type pushedTally = { a: number; b: number };
 
-let recursivelyCalculateMoves = (
-  currentPos: pos,
-  a: pos,
-  b: pos,
-  prizePos: pos,
-  pushedTally: pushedTally = { a: 0, b: 0 }
-): "failed" | pushedTally => {
-  if (currentPos.x === prizePos.x && currentPos.y === prizePos.y) {
-    return pushedTally;
-  }
-  if (currentPos.x > prizePos.x || currentPos.y > prizePos.y) {
-    return "failed";
-  }
-  const aPushedPos = { x: currentPos.x + a.x, y: currentPos.y + a.y };
-  const bPushedPos = { x: currentPos.x + b.x, y: currentPos.y + b.y };
-
-  const aPushedTally = recursivelyCalculateMoves(aPushedPos, a, b, prizePos, {
-    a: pushedTally.a + 1,
-    b: pushedTally.b,
-  });
-  if (aPushedTally !== "failed") {
-    return aPushedTally;
-  }
-
-  const bPushedTally = recursivelyCalculateMoves(bPushedPos, a, b, prizePos, {
-    a: pushedTally.a,
-    b: pushedTally.b + 1,
-  });
-
-  if (bPushedTally !== "failed") {
-    return bPushedTally;
-  }
-  return "failed";
-};
-
-recursivelyCalculateMoves = memoise(recursivelyCalculateMoves);
-
 let sum = 0;
 
 machines.forEach((machine, index) => {
   console.log(index);
-  const prizeX = +(machine.match(/X=\d+/g)?.[0].match(/\d+/g)?.[0] ?? "");
-  const prizeY = +(machine.match(/Y=\d+/g)?.[0].match(/\d+/g)?.[0] ?? "");
+  const prizeX =
+    +(machine.match(/X=\d+/g)?.[0].match(/\d+/g)?.[0] ?? "") + 10000000000000;
+  const prizeY =
+    +(machine.match(/Y=\d+/g)?.[0].match(/\d+/g)?.[0] ?? "") + 10000000000000;
   const buttonALine = machine.match(/Button A.*/g)?.[0] ?? "";
   const buttonBLine = machine.match(/Button B.*/g)?.[0] ?? "";
   const aX = +(buttonALine.match(/\d+/g)?.[0] ?? "");
@@ -61,12 +26,31 @@ machines.forEach((machine, index) => {
   const bX = +(buttonBLine.match(/\d+/g)?.[0] ?? "");
   const bY = +(buttonBLine.match(/\d+/g)?.[1] ?? "");
   const prizePos = { x: prizeX, y: prizeY };
-  const a = { x: aX, y: aY };
-  const b = { x: bX, y: bY };
-  const result = recursivelyCalculateMoves({ x: 0, y: 0 }, a, b, prizePos);
-  if (result !== "failed") {
-    sum += result.a * 3 + result.b;
+  // can be graphed y = ax + c and y = bx +d
+  // intersection x = (d - c)/(a - n)
+  const a = -aX / bX;
+  const c = prizePos.x / bX;
+  const b = -aY / bY;
+  const d = prizePos.y / bY;
+  if (a === b) {
+    // lines parallel
+    return;
   }
+  const intersectionX = Math.round((d - c) / (a - b));
+  //x can be used to find y from either line
+  const intersectionY = Math.round(a * intersectionX + c);
+
+  console.log(Math.round(intersectionX), Math.round(intersectionY));
+
+  if (
+    intersectionX * aX + intersectionY * bX !== prizePos.x ||
+    intersectionX * aY + intersectionY * bY !== prizePos.y
+  ) {
+    return;
+  }
+  console.log(intersectionX, intersectionY);
+  console.log(a, b, c, d);
+  sum += intersectionX * 3 + intersectionY;
 });
 
 console.log(sum);
