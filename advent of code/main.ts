@@ -9,11 +9,13 @@ const lines = inputString.split("\r\n");
 
 const width = 101;
 const height = 103;
-const seconds = 100;
 
 type Coords = { x: number; y: number };
-const positions: Record<number, Coords> = {};
-const velocities: Record<number, Coords> = {};
+type Positions = Record<number, Coords>;
+type PositionCoords = Record<number, number>;
+const positions: Positions = {};
+const velocities: Positions = {};
+let positionCoords: PositionCoords = {};
 
 lines.forEach((line, index) => {
   const [left, right] = line.split(" ");
@@ -24,58 +26,59 @@ lines.forEach((line, index) => {
   velocities[id] = { x: vX, y: vY };
 });
 
-for (let i = 1; i <= seconds; i++) {
+let getNextPosition = (position: Coords, velocity: Coords) => {
+  const newPosition = {
+    x: position.x + velocity.x,
+    y: position.y + velocity.y,
+  };
+  if (newPosition.x < 0) {
+    newPosition.x = newPosition.x + width;
+  }
+  if (newPosition.y < 0) {
+    newPosition.y = newPosition.y + height;
+  }
+  if (newPosition.x >= width) {
+    newPosition.x = newPosition.x - width;
+  }
+  if (newPosition.y >= height) {
+    newPosition.y = newPosition.y - height;
+  }
+  return newPosition;
+};
+
+getNextPosition = memoise(getNextPosition);
+
+let secondsElapsed = 0;
+
+var encoder = new TextEncoder();
+
+while (secondsElapsed < 130000) {
+  secondsElapsed++;
+  positionCoords = {};
   Object.entries(velocities).forEach(([id, velocity]) => {
     const position = positions[+id];
-    position.x += velocity.x;
-    position.y += velocity.y;
-    if (position.x < 0) {
-      position.x = position.x + width;
-    }
-    if (position.y < 0) {
-      position.y = position.y + height;
-    }
-    if (position.x >= width) {
-      position.x = position.x - width;
-    }
-    if (position.y >= height) {
-      position.y = position.y - height;
-    }
+    const newPosition = getNextPosition(position, velocity);
+    positions[+id] = newPosition;
+    positionCoords[newPosition.y] = positionCoords[newPosition.y]
+      ? positionCoords[newPosition.y] + 1
+      : 1;
   });
+  console.log(secondsElapsed);
+  if ((secondsElapsed - 48)%101 === 0 || (secondsElapsed - 1) % 103 === 0){//I don't know why, just looks like it based on output
+    let map = "";
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const found = Object.values(positions).find(
+          (position) => position.x === x && position.y === y
+        );
+        map += found ? "#" : ".";
+      }
+      map += "\n";
+    }
+    console.log(secondsElapsed);
+    var data = encoder.encode(secondsElapsed + "\n" + map);
+    Deno.writeFile("outputLMults.txt", data, { append: true });
+  }
 }
 
-console.log(positions);
-
-const quadrants: Record<1 | 2 | 3 | 4, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
-
-Object.entries(positions).forEach(([id, position]) => {
-  console.log(position);
-  if (
-    position.x < Math.ceil(width / 2) - 1 &&
-    position.y < Math.ceil(height / 2) - 1
-  ) {
-    quadrants[1] = (quadrants[1] || 0) + 1;
-    console.log("1");
-  } else if (
-    position.x > Math.ceil(width / 2) - 1 &&
-    position.y < Math.ceil(height / 2) - 1
-  ) {
-    quadrants[2] = (quadrants[2] || 0) + 1;
-    console.log("2");
-  } else if (
-    position.x < Math.ceil(width / 2) - 1 &&
-    position.y > Math.ceil(height / 2) - 1
-  ) {
-    quadrants[3] = (quadrants[3] || 0) + 1;
-    console.log("3");
-  } else if (
-    position.x > Math.ceil(width / 2) - 1 &&
-    position.y > Math.ceil(height / 2) - 1
-  ) {
-    quadrants[4] = (quadrants[4] || 0) + 1;
-    console.log("4");
-  }
-});
-
-console.log(quadrants[1], quadrants[2], quadrants[3], quadrants[4]);
-console.log(quadrants[1] * quadrants[2] * quadrants[3] * quadrants[4]);
+console.log(secondsElapsed);
