@@ -24,27 +24,60 @@ const getNewPosFromMove = (move: Move, pos: Coord): Coord => {
   }
 };
 
-const recursivelyCheckPosAndMove = (move: Move, pos: Coord): boolean => {
-  const charToMove = map[pos.y][pos.x];
+type Map = Record<number, Record<number, string>>;
+let map: Map = {};
+let mapClone: Map = {};
+let checked: Record<number, Record<number, boolean>> = {};
+
+let recursivelyCheckPosAndMove = (move: Move, pos: Coord): boolean => {
+  const isChecked = checked[pos.y]?.[pos.x];
+  if (isChecked) {
+    return isChecked;
+  }
+  checked[pos.y] ??= {};
+  checked[pos.y][pos.x] = true;
+  const charToMove = mapClone[pos.y][pos.x];
   const newPos = getNewPosFromMove(move, pos);
-  const charAtNewPos = map[newPos.y][newPos.x];
+  const charAtNewPos = mapClone[newPos.y]?.[newPos.x];
+  if (!charAtNewPos) {
+    return false;
+  }
 
   if (charAtNewPos === "#") {
     return false;
   } else if (charAtNewPos === ".") {
-    map[newPos.y][newPos.x] = charToMove;
-    map[pos.y][pos.x] = ".";
+    mapClone[newPos.y][newPos.x] = charToMove;
+    mapClone[pos.y][pos.x] = ".";
     if (charToMove === "@") {
       botPos = newPos;
     }
     return true;
-  } else if (charAtNewPos === "O") {
-    const moveSucceeded = recursivelyCheckPosAndMove(move, newPos);
-    if (!moveSucceeded) {
+  } else if (charAtNewPos === "[") {
+    const moveSucceededL = recursivelyCheckPosAndMove(move, newPos);
+    const moveSucceededR = recursivelyCheckPosAndMove(move, {
+      ...newPos,
+      x: newPos.x + 1,
+    });
+    if (!moveSucceededL || !moveSucceededR) {
       return false;
     }
-    map[newPos.y][newPos.x] = charToMove;
-    map[pos.y][pos.x] = ".";
+    mapClone[newPos.y][newPos.x] = charToMove;
+    mapClone[pos.y][pos.x] = ".";
+    if (charToMove === "@") {
+      botPos = newPos;
+    }
+    return true;
+  } else if (charAtNewPos === "]") {
+    const moveSucceededL = recursivelyCheckPosAndMove(move, {
+      ...newPos,
+      x: newPos.x - 1,
+    });
+    const moveSucceededR = recursivelyCheckPosAndMove(move, newPos);
+    if (!moveSucceededL || !moveSucceededR) {
+      return false;
+    }
+    mapClone[newPos.y][newPos.x] = charToMove;
+    mapClone[pos.y][pos.x] = ".";
     if (charToMove === "@") {
       botPos = newPos;
     }
@@ -53,32 +86,48 @@ const recursivelyCheckPosAndMove = (move: Move, pos: Coord): boolean => {
   return false;
 };
 
-const map: Record<number, Record<number, string>> = {};
-
 let botPos: Coord = { x: 0, y: 0 };
 
 initial.split("\r\n").forEach((line, lineIndex) => {
   line.split("").forEach((char, charIndex) => {
+    const wideX = 2 * charIndex;
     map[lineIndex] ??= {};
-    map[lineIndex][charIndex] = char;
     if (char === "@") {
-      botPos = { x: charIndex, y: lineIndex };
+      botPos = { x: wideX, y: lineIndex };
+      map[lineIndex][wideX] = "@";
+      map[lineIndex][wideX + 1] = ".";
+    } else if (char === "O") {
+      map[lineIndex][wideX] = "[";
+      map[lineIndex][wideX + 1] = "]";
+    } else {
+      map[lineIndex][wideX] = char;
+      map[lineIndex][wideX + 1] = char;
     }
   });
 });
 
 moves.split("").forEach((move) => {
   if (![">", "<", "^", "v"].includes(move)) return;
-  console.log("Moving", move);
-  recursivelyCheckPosAndMove(move as Move, botPos);
-  Object.values(map).forEach((row) => {
-    console.log(Object.values(row).join(""));
-  });
+
+  console.log("Moving " + move);
+
+  mapClone = JSON.parse(JSON.stringify(map));
+  checked = {};
+
+  const succeeded = recursivelyCheckPosAndMove(move as Move, botPos);
+  if (succeeded) {
+    map = mapClone;
+  }
+
+  // Object.values(map).forEach((row) => {
+  //   console.log(Object.values(row).join(""));
+  // });
 });
+
 let sum = 0;
 Object.entries(map).forEach(([y, row]) => {
   Object.entries(row).forEach(([x, char]) => {
-    if (char === "O") {
+    if (char === "[") {
       sum += +y * 100 + +x;
     }
   });
