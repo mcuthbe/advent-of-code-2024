@@ -5,80 +5,83 @@ const filePath = "./input.txt";
 
 let inputString = (await Deno.readTextFile(filePath)) as string;
 
-const lines = inputString.split("\r\n");
+const [initial, moves] = inputString.split("\r\n\r\n");
 
-const width = 101;
-const height = 103;
+type Coord = { x: number; y: number };
 
-type Coords = { x: number; y: number };
-type Positions = Record<number, Coords>;
-type PositionCoords = Record<number, number>;
-const positions: Positions = {};
-const velocities: Positions = {};
-let positionCoords: PositionCoords = {};
+type Move = "<" | ">" | "^" | "v";
 
-lines.forEach((line, index) => {
-  const [left, right] = line.split(" ");
-  const [x, y] = left.split("=")[1].split(",").map(Number);
-  const [vX, vY] = right.split("=")[1].split(",").map(Number);
-  const id = index;
-  positions[id] = { x, y };
-  velocities[id] = { x: vX, y: vY };
-});
-
-let getNextPosition = (position: Coords, velocity: Coords) => {
-  const newPosition = {
-    x: position.x + velocity.x,
-    y: position.y + velocity.y,
-  };
-  if (newPosition.x < 0) {
-    newPosition.x = newPosition.x + width;
+const getNewPosFromMove = (move: Move, pos: Coord): Coord => {
+  switch (move) {
+    case "<":
+      return { x: pos.x - 1, y: pos.y };
+    case ">":
+      return { x: pos.x + 1, y: pos.y };
+    case "^":
+      return { x: pos.x, y: pos.y - 1 };
+    case "v":
+      return { x: pos.x, y: pos.y + 1 };
   }
-  if (newPosition.y < 0) {
-    newPosition.y = newPosition.y + height;
-  }
-  if (newPosition.x >= width) {
-    newPosition.x = newPosition.x - width;
-  }
-  if (newPosition.y >= height) {
-    newPosition.y = newPosition.y - height;
-  }
-  return newPosition;
 };
 
-getNextPosition = memoise(getNextPosition);
+const recursivelyCheckPosAndMove = (move: Move, pos: Coord): boolean => {
+  const charToMove = map[pos.y][pos.x];
+  const newPos = getNewPosFromMove(move, pos);
+  const charAtNewPos = map[newPos.y][newPos.x];
 
-let secondsElapsed = 0;
-
-var encoder = new TextEncoder();
-
-while (secondsElapsed < 130000) {
-  secondsElapsed++;
-  positionCoords = {};
-  Object.entries(velocities).forEach(([id, velocity]) => {
-    const position = positions[+id];
-    const newPosition = getNextPosition(position, velocity);
-    positions[+id] = newPosition;
-    positionCoords[newPosition.y] = positionCoords[newPosition.y]
-      ? positionCoords[newPosition.y] + 1
-      : 1;
-  });
-  console.log(secondsElapsed);
-  if ((secondsElapsed - 48)%101 === 0 || (secondsElapsed - 1) % 103 === 0){//I don't know why, just looks like it based on output
-    let map = "";
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const found = Object.values(positions).find(
-          (position) => position.x === x && position.y === y
-        );
-        map += found ? "#" : ".";
-      }
-      map += "\n";
+  if (charAtNewPos === "#") {
+    return false;
+  } else if (charAtNewPos === ".") {
+    map[newPos.y][newPos.x] = charToMove;
+    map[pos.y][pos.x] = ".";
+    if (charToMove === "@") {
+      botPos = newPos;
     }
-    console.log(secondsElapsed);
-    var data = encoder.encode(secondsElapsed + "\n" + map);
-    Deno.writeFile("outputLMults.txt", data, { append: true });
+    return true;
+  } else if (charAtNewPos === "O") {
+    const moveSucceeded = recursivelyCheckPosAndMove(move, newPos);
+    if (!moveSucceeded) {
+      return false;
+    }
+    map[newPos.y][newPos.x] = charToMove;
+    map[pos.y][pos.x] = ".";
+    if (charToMove === "@") {
+      botPos = newPos;
+    }
+    return true;
   }
-}
+  return false;
+};
 
-console.log(secondsElapsed);
+const map: Record<number, Record<number, string>> = {};
+
+let botPos: Coord = { x: 0, y: 0 };
+
+initial.split("\r\n").forEach((line, lineIndex) => {
+  line.split("").forEach((char, charIndex) => {
+    map[lineIndex] ??= {};
+    map[lineIndex][charIndex] = char;
+    if (char === "@") {
+      botPos = { x: charIndex, y: lineIndex };
+    }
+  });
+});
+
+moves.split("").forEach((move) => {
+  if (![">", "<", "^", "v"].includes(move)) return;
+  console.log("Moving", move);
+  recursivelyCheckPosAndMove(move as Move, botPos);
+  Object.values(map).forEach((row) => {
+    console.log(Object.values(row).join(""));
+  });
+});
+let sum = 0;
+Object.entries(map).forEach(([y, row]) => {
+  Object.entries(row).forEach(([x, char]) => {
+    if (char === "O") {
+      sum += +y * 100 + +x;
+    }
+  });
+});
+
+console.log(sum);
