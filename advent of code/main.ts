@@ -5,158 +5,110 @@ const filePath = "./input.txt";
 
 let inputString = (await Deno.readTextFile(filePath)) as string;
 
-const [initial, moves] = inputString.split("\r\n\r\n");
+const [registers, program] = inputString.split("\r\n\r\n");
 
-type Coord = { x: number; y: number };
+let [registerA, registerB, registerC] =
+  registers.match(/(\d+)/g)?.map((value) => +value) ?? [];
 
-type Map = Record<number, Record<number, string>>;
-type Direction = ">" | "<" | "^" | "v";
-type Location = { position: Coord; direction: Direction };
+const instructions = program.match(/\d+/g)?.map((value) => +value) ?? [];
 
-let map: Map = {};
-let startPos: Coord = { x: 0, y: 0 };
-let endPos: Coord = { x: 0, y: 0 };
-let checked: Record<`${number},${number}`, number> = {};
-let startDirection: Direction = ">";
-type Move = "Go" | "Clockwise" | "CounterClockwise";
-
-const getNewPosFromMove = (direction: Direction, pos: Coord): Coord => {
-  switch (direction) {
-    case "<":
-      return { x: pos.x - 1, y: pos.y };
-    case ">":
-      return { x: pos.x + 1, y: pos.y };
-    case "^":
-      return { x: pos.x, y: pos.y - 1 };
-    case "v":
-      return { x: pos.x, y: pos.y + 1 };
+const getValueFromComboOperand = (operand: number) => {
+  switch (operand) {
+    case 0:
+      return 0;
+    case 1:
+      return 1;
+    case 2:
+      return 2;
+    case 3:
+      return 3;
+    case 4:
+      return registerA;
+    case 5:
+      return registerB;
+    case 6:
+      return registerC;
+    default:
+      return operand;
   }
 };
 
-const move = (position: Coord, type: Move, currentDir: Direction): Location => {
-  switch (type) {
-    case "Go":
-      return {
-        position: getNewPosFromMove(currentDir, position),
-        direction: currentDir,
-      };
-    case "Clockwise":
-      switch (currentDir) {
-        case "^":
-          return { position, direction: ">" };
-        case ">":
-          return { position, direction: "v" };
-        case "v":
-          return { position, direction: "<" };
-        case "<":
-          return { position, direction: "^" };
-      }
+const getCodeFromInstruction = (instruction: number) => {
+  switch (instruction) {
+    case 0:
+      return "adv";
+    case 1:
+      return "bxl";
+    case 2:
+      return "bst";
+    case 3:
+      return "jnz";
+    case 4:
+      return "bxc";
+    case 5:
+      return "out";
+    case 6:
+      return "bdv";
+    case 7:
+      return "cdv";
+    default:
+      return "invalid";
+  }
+};
+
+let halted = false;
+
+const outs: number[] = [];
+
+let pointer = 0;
+
+while (!halted) {
+  const instruction = instructions[pointer];
+
+  console.log(getCodeFromInstruction(instruction));
+  console.log(instructions, pointer);
+  console.log(instructions[pointer]);
+
+  const literalOperand = instructions[pointer + 1];
+  const comboOperand = getValueFromComboOperand(instructions[pointer + 1]);
+
+  console.log({ instruction, literalOperand, comboOperand });
+  console.log({ registerA, registerB, registerC });
+
+  if (instruction === undefined) {
+    halted = true;
+    break;
+  }
+  switch (instruction) {
+    case 0: //adv
+      registerA = Math.floor(registerA / Math.pow(2, comboOperand));
       break;
-    case "CounterClockwise":
-      switch (currentDir) {
-        case "^":
-          return { position, direction: "<" };
-        case ">":
-          return { position, direction: "^" };
-        case "v":
-          return { position, direction: ">" };
-        case "<":
-          return { position, direction: "v" };
+    case 1: //bxl
+      registerB = registerB ^ literalOperand;
+      break;
+    case 2: //bst
+      registerB = comboOperand % 8;
+      break;
+    case 3: //jnz
+      if (registerA === 0) {
+        break;
       }
+      pointer = literalOperand;
+      continue;
+    case 4: //bxc
+      registerB = registerB ^ registerC;
+      break;
+    case 5: //out
+      outs.push(comboOperand % 8);
+      break;
+    case 6: //bdv
+      registerB = Math.floor(registerA / Math.pow(2, comboOperand));
+      break;
+    case 7: //cdv
+      registerC = Math.floor(registerA / Math.pow(2, comboOperand));
       break;
   }
-};
-
-const isVertical = (direction: Direction) => {
-  return direction === "^" || direction === "v";
-};
-
-const isHorizontal = (direction: Direction) => {
-  return direction === ">" || direction === "<";
-};
-
-const getOppositeDirection = (direction: Direction) => {
-  switch (direction) {
-    case "^":
-      return "v";
-    case "v":
-      return "^";
-    case ">":
-      return "<";
-    case "<":
-      return ">";
-  }
-};
-
-const getTurns = (currentDirection: Direction, finalDirection: Direction) => {
-  if (
-    (isHorizontal(currentDirection) && isHorizontal(finalDirection)) ||
-    (isVertical(currentDirection) && isVertical(finalDirection))
-  ) {
-    return 0;
-  } else return 1;
-};
-
-let minScore: number | undefined = undefined;
-
-let recursivelyCheckMoves = (currentLocation: Location, score = 0) => {
-  const directions: Direction[] = [">", "<", "^", "v"];
-  const { position: currentPosition } = currentLocation;
-  const { x: currentX, y: currentY } = currentPosition;
-
-  if (score >= checked[`${currentX},${currentY}`]) return;
-
-  checked[`${currentX},${currentY}`] = score;
-
-  directions.forEach((direction) => {
-    const newPos = getNewPosFromMove(direction, currentLocation.position);
-
-    const { x: newX, y: newY } = newPos;
-
-    const char = map[newY]?.[newX];
-
-    const turns = getTurns(currentLocation.direction, direction);
-
-    const newScore =
-      score +
-      Math.abs(newY - currentY) +
-      Math.abs(newX - currentX) +
-      1000 * turns;
-
-    if (char === "E") {
-      console.log("Found the end");
-      minScore = minScore ? Math.min(minScore, newScore) : newScore;
-      console.log(newScore);
-      return newScore;
-    } else if (char === ".") {
-      return recursivelyCheckMoves(
-        {
-          position: newPos,
-          direction: direction,
-        },
-        newScore
-      );
-    }
-  });
-  return 0;
-};
-
-initial.split("\r\n").forEach((line, lineIndex) => {
-  line.split("").forEach((char, charIndex) => {
-    map[lineIndex] ??= {};
-    if (char === "S") {
-      startPos = { x: charIndex, y: lineIndex };
-    } else if (char === "E") {
-      endPos = { x: charIndex, y: lineIndex };
-    }
-    map[lineIndex][charIndex] = char;
-  });
-});
-
-const score = recursivelyCheckMoves({ position: startPos, direction: ">" });
-
-Object.values(map).forEach((row) => {
-  console.log(Object.values(row).join(""));
-});
-
-console.log(minScore);
+  pointer += 2;
+  console.log(outs.join(","));
+}
+console.log(outs.join(","));
