@@ -43,44 +43,58 @@ for (let i = 0; i < moves; i++) {
 }
 
 const pos: Coord = { x: 0, y: 0 };
-let foundSteps = 0;
-let found = false;
-const queue: Step[] = [{ pos, steps: 0 }];
-type Step = { pos: Coord; steps: number };
-
-const checked: Record<number, Record<number, boolean>> = {};
 
 Object.keys(map).forEach((y) => {
   console.log(Object.values(map[+y]).join(""));
 });
 
-while (!found && queue.length > 0) {
-  const firstStep = queue[0];
-  const { pos, steps } = firstStep;
-  const char = map[pos.y][pos.x];
-  if (pos.x === width && pos.y === width) {
-    found = true;
-    foundSteps = steps;
-    break;
-  }
-  if (char === ".") {
-    const validPosition = directions
-      .map((direction) => {
-        const newPos = getNewPosFromMove(direction, pos);
-        const newChar = map[newPos.y]?.[newPos.x];
-        if (newChar && newChar !== "#" && !checked[newPos.y]?.[newPos.x]) {
-          checked[newPos.y] = checked[newPos.y] || {};
-          checked[newPos.y][newPos.x] = true;
-          return newPos;
-        }
-        return undefined;
-      })
-      .filter((position) => !!position);
-    validPosition.forEach((position) => {
-      queue.push({ pos: position, steps: steps + 1 });
-    });
-  }
-  queue.shift();
-}
+const CheckPath = (): boolean => {
+  const checked: Record<number, Record<number, boolean>> = {};
 
-console.log(foundSteps);
+  let found = false;
+  const queue: Step[] = [{ pos, steps: [] }];
+  type Step = { pos: Coord; steps: Coord[] };
+  while (!found && queue.length > 0) {
+    const firstStep = queue[0];
+    const { pos, steps } = firstStep;
+    const char = map[pos.y][pos.x];
+    if (pos.x === width && pos.y === width) {
+      found = true;
+      break;
+    }
+    if (char === ".") {
+      const validPosition = directions
+        .map((direction) => {
+          const newPos = getNewPosFromMove(direction, pos);
+          const newChar = map[newPos.y]?.[newPos.x];
+          if (newChar && newChar !== "#" && !checked[newPos.y]?.[newPos.x]) {
+            checked[newPos.y] = checked[newPos.y] || {};
+            checked[newPos.y][newPos.x] = true;
+            return newPos;
+          }
+          return undefined;
+        })
+        .filter((position) => !!position);
+      validPosition.forEach((position) => {
+        queue.push({ pos: position, steps: [...steps, position] });
+      });
+    }
+    queue.shift();
+  }
+  return found;
+};
+
+let blocked = false;
+let nextMoveIndex = moves;
+while (!blocked) {
+  const nextMove = lines[nextMoveIndex];
+  console.log(nextMove);
+  const [x, y] = nextMove.split(",").map(Number);
+  map[y][x] = "#";
+  blocked = !CheckPath();
+  // Object.keys(map).forEach((y) => {
+  //   console.log(Object.values(map[+y]).join(""));
+  // });
+  nextMoveIndex++;
+}
+console.log(lines[nextMoveIndex - 1]);
