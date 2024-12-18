@@ -5,110 +5,82 @@ const filePath = "./input.txt";
 
 let inputString = (await Deno.readTextFile(filePath)) as string;
 
-const [registers, program] = inputString.split("\r\n\r\n");
-
-let [registerA, registerB, registerC] =
-  registers.match(/(\d+)/g)?.map((value) => +value) ?? [];
-
-const instructions = program.match(/\d+/g)?.map((value) => +value) ?? [];
-
-const getValueFromComboOperand = (operand: number) => {
-  switch (operand) {
-    case 0:
-      return 0;
-    case 1:
-      return 1;
-    case 2:
-      return 2;
-    case 3:
-      return 3;
-    case 4:
-      return registerA;
-    case 5:
-      return registerB;
-    case 6:
-      return registerC;
-    default:
-      return operand;
+const getNewPosFromMove = (move: Move, pos: Coord): Coord => {
+  switch (move) {
+    case "<":
+      return { x: pos.x - 1, y: pos.y };
+    case ">":
+      return { x: pos.x + 1, y: pos.y };
+    case "^":
+      return { x: pos.x, y: pos.y - 1 };
+    case "v":
+      return { x: pos.x, y: pos.y + 1 };
   }
 };
 
-const getCodeFromInstruction = (instruction: number) => {
-  switch (instruction) {
-    case 0:
-      return "adv";
-    case 1:
-      return "bxl";
-    case 2:
-      return "bst";
-    case 3:
-      return "jnz";
-    case 4:
-      return "bxc";
-    case 5:
-      return "out";
-    case 6:
-      return "bdv";
-    case 7:
-      return "cdv";
-    default:
-      return "invalid";
+const directions = ["<", ">", "^", "v"] as Move[];
+
+const lines = inputString.split("\r\n");
+const width = 70;
+const moves = 1024;
+
+type Coord = { x: number; y: number };
+
+type Move = "<" | ">" | "^" | "v";
+
+const map: Record<number, Record<number, string>> = {};
+
+for (let i = 0; i <= width; i++) {
+  for (let j = 0; j <= width; j++) {
+    map[i] = map[i] || {};
+    map[i][j] = ".";
   }
-};
+}
 
-let halted = false;
+for (let i = 0; i < moves; i++) {
+  const [x, y] = lines[i].split(",").map(Number);
+  map[y][x] = "#";
+}
 
-const outs: number[] = [];
+const pos: Coord = { x: 0, y: 0 };
+let foundSteps = 0;
+let found = false;
+const queue: Step[] = [{ pos, steps: 0 }];
+type Step = { pos: Coord; steps: number };
 
-let pointer = 0;
+const checked: Record<number, Record<number, boolean>> = {};
 
-while (!halted) {
-  const instruction = instructions[pointer];
+Object.keys(map).forEach((y) => {
+  console.log(Object.values(map[+y]).join(""));
+});
 
-  console.log(getCodeFromInstruction(instruction));
-  console.log(instructions, pointer);
-  console.log(instructions[pointer]);
-
-  const literalOperand = instructions[pointer + 1];
-  const comboOperand = getValueFromComboOperand(instructions[pointer + 1]);
-
-  console.log({ instruction, literalOperand, comboOperand });
-  console.log({ registerA, registerB, registerC });
-
-  if (instruction === undefined) {
-    halted = true;
+while (!found && queue.length > 0) {
+  const firstStep = queue[0];
+  const { pos, steps } = firstStep;
+  const char = map[pos.y][pos.x];
+  if (pos.x === width && pos.y === width) {
+    found = true;
+    foundSteps = steps;
     break;
   }
-  switch (instruction) {
-    case 0: //adv
-      registerA = Math.floor(registerA / Math.pow(2, comboOperand));
-      break;
-    case 1: //bxl
-      registerB = registerB ^ literalOperand;
-      break;
-    case 2: //bst
-      registerB = comboOperand % 8;
-      break;
-    case 3: //jnz
-      if (registerA === 0) {
-        break;
-      }
-      pointer = literalOperand;
-      continue;
-    case 4: //bxc
-      registerB = registerB ^ registerC;
-      break;
-    case 5: //out
-      outs.push(comboOperand % 8);
-      break;
-    case 6: //bdv
-      registerB = Math.floor(registerA / Math.pow(2, comboOperand));
-      break;
-    case 7: //cdv
-      registerC = Math.floor(registerA / Math.pow(2, comboOperand));
-      break;
+  if (char === ".") {
+    const validPosition = directions
+      .map((direction) => {
+        const newPos = getNewPosFromMove(direction, pos);
+        const newChar = map[newPos.y]?.[newPos.x];
+        if (newChar && newChar !== "#" && !checked[newPos.y]?.[newPos.x]) {
+          checked[newPos.y] = checked[newPos.y] || {};
+          checked[newPos.y][newPos.x] = true;
+          return newPos;
+        }
+        return undefined;
+      })
+      .filter((position) => !!position);
+    validPosition.forEach((position) => {
+      queue.push({ pos: position, steps: steps + 1 });
+    });
   }
-  pointer += 2;
-  console.log(outs.join(","));
+  queue.shift();
 }
-console.log(outs.join(","));
+
+console.log(foundSteps);
