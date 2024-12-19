@@ -10,26 +10,36 @@ const [optionsString, designsString] = inputString.split(`
 `);
 const options = optionsString.split(", ");
 const designs = designsString.split("\n");
-
-const recursivelyBuildDesign = (
+let recursivelyBuildDesign = (
   target: string,
-  current: string = ""
-): boolean => {
+  current: string = "",
+  sum = 0
+): number => {
   if (current === target) {
-    return true;
+    return sum + 1;
   } else if (current.length > target.length || !target.startsWith(current)) {
-    return false;
+    return 0;
   }
-  return options.some((option) => {
-    return recursivelyBuildDesign(target, current + option);
+  const sums = options.map((option) => {
+    const newCurrent = current + option;
+    if (newCurrent.length > target.length || !target.startsWith(newCurrent)) {
+      return undefined;
+    }
+    return recursivelyBuildDesign(target, current + option, sum);
   });
+  return sums
+    .filter((sum) => sum !== undefined)
+    .reduce((acc, curr) => acc + curr, 0);
 };
 
-let possibles = 0;
+recursivelyBuildDesign = memoise(recursivelyBuildDesign);
+
+let sums = 0;
 designs.forEach((design, index) => {
   console.log(index);
-  if (recursivelyBuildDesign(design)) {
-    possibles++;
-  }
+
+  const sum = recursivelyBuildDesign(design);
+  sums += sum;
 });
-console.log(possibles);
+
+console.log(sums);
